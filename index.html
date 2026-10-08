@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Syllable Dojo</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&family=Fredoka:wght@500;700&display=swap">
+<style>
+/* Layout: dojo HUD (belt + stars + mode), then a wooden board holding a paper scroll where the word is chopped */
+:root{
+  --paper:#f6efe1; --paper2:#ece0c6; --scroll:#fffaf0; --wood:#b9824f; --wood2:#9a6a3c; --ink:#2b2118;
+  --red:#d64933; --leaf:#2f9a58; --sky:#3a7bd5; --muted:#7a6650;
+  --display:"Fredoka","Comic Neue",system-ui,sans-serif;
+  --read:"Comic Neue","Comic Sans MS",system-ui,sans-serif;
+  color-scheme:light;
+}
+*{box-sizing:border-box}
+[hidden]{display:none!important}
+html,body{height:100%}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--read);padding-inline:16px;padding-block:12px 24px;
+  background-image:repeating-linear-gradient(90deg,transparent 0 120px,var(--paper2) 120px 123px)}
+.wrap{max-width:1000px;margin:0 auto;display:flex;flex-direction:column;gap:14px}
+header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+h1{font-family:var(--display);font-size:clamp(1.6rem,4.4vw,2.5rem);margin:0}
+h1 span{color:var(--red)}
+.hud{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.pill{background:var(--scroll);border:3px solid var(--ink);border-radius:999px;padding:5px 14px;font-family:var(--display);font-size:1.1rem;display:flex;gap:8px;align-items:center;font-variant-numeric:tabular-nums}
+.sw{display:inline-block;width:30px;height:12px;border:2px solid var(--ink);border-radius:3px;background:#fff}
+.btn{font-family:var(--display);background:var(--scroll);border:3px solid var(--ink);color:var(--ink);border-radius:12px;padding:5px 11px;font-size:1.05rem;cursor:pointer}
+.btn.on{background:#ffd23f}
+button:focus-visible{outline:4px solid var(--sky);outline-offset:3px}
+
+.board{border:4px solid var(--ink);border-radius:22px;padding:clamp(14px,3vw,24px);box-shadow:0 6px 0 var(--ink);display:flex;flex-direction:column;gap:14px;
+  background:repeating-linear-gradient(0deg,var(--wood) 0 22px,#b07a48 22px 24px,var(--wood) 24px 46px,var(--wood2) 46px 47px)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;font-family:var(--display);color:#fff;font-size:1.15rem;text-shadow:0 2px 0 var(--ink)}
+.belts{display:flex;gap:6px;flex-wrap:wrap}
+.belt{width:40px;height:14px;border:2px solid var(--ink);border-radius:3px;opacity:.25;background:#fff}
+.belt.on{opacity:1}
+.prompt{margin:0;background:var(--scroll);border:3px solid var(--ink);border-radius:14px;padding:10px 14px;text-align:center;font-family:var(--display);font-size:clamp(1.1rem,3vw,1.45rem)}
+.stage{background:var(--scroll);border:4px solid var(--ink);border-radius:18px;min-height:clamp(180px,30vh,260px);display:grid;place-items:center;padding:28px 10px 18px;overflow-x:auto}
+
+/* chop view */
+.word{display:flex;align-items:stretch;justify-content:center;font-family:var(--read);font-weight:700;font-size:clamp(2.4rem,9vw,5.6rem);line-height:1.25}
+.letter{display:block;padding:0 .02em}
+.gap{position:relative;width:clamp(14px,2.6vw,30px);border:none;background:transparent;cursor:pointer;padding:0}
+.gap::after{content:"";position:absolute;left:50%;top:6%;bottom:6%;border-left:4px dashed rgba(43,33,24,.14);transform:translateX(-50%)}
+.gap:hover::after{border-left-color:rgba(214,73,51,.55)}
+.gap.cut::after{border-left:6px solid var(--red)}
+.gap.cut::before{content:"✂";position:absolute;top:-.55em;left:50%;transform:translateX(-50%);font-size:.38em;color:var(--red)}
+.gap.ok::after{border-left-color:var(--leaf)}
+.gap.ok::before{color:var(--leaf)}
+.gap.bad{animation:shake .4s}
+
+/* say-each-part + whole */
+.chips{display:flex;gap:clamp(10px,3vw,26px);justify-content:center;flex-wrap:wrap}
+.chip,.block{font-family:var(--read);font-weight:700;font-size:clamp(2.2rem,7.5vw,4.4rem);padding:.08em .35em;border:4px solid var(--ink);border-radius:16px;box-shadow:0 5px 0 var(--ink);color:var(--ink);cursor:pointer;background:#fff;animation:popin .35s ease}
+.chip{opacity:.55}
+.chip.next{opacity:1;animation:pulse 1s ease-in-out infinite}
+.chip.said{opacity:1;box-shadow:0 0 0 5px var(--leaf),0 5px 0 var(--ink)}
+.whole{font-family:var(--read);font-weight:700;font-size:clamp(2.6rem,10vw,6rem);animation:popin .4s ease;text-align:center}
+.whole span{padding:0 .04em;border-radius:10px}
+
+/* build view */
+.build{display:flex;flex-direction:column;gap:22px;align-items:center;width:100%}
+.slots{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.slot{min-width:2.6em;min-height:1.35em;border:4px dashed var(--ink);border-radius:14px;font-family:var(--read);font-weight:700;font-size:clamp(2.2rem,7.5vw,4.4rem);display:grid;place-items:center;padding:0 .3em;background:rgba(255,255,255,.4)}
+.slot.filled{border-style:solid;animation:popin .3s ease}
+.blocks{display:flex;gap:14px;justify-content:center;flex-wrap:wrap;min-height:1em}
+.shake{animation:shake .4s!important}
+
+.fb{margin:0;min-height:1.5em;text-align:center;font-family:var(--display);font-size:clamp(1.2rem,3.4vw,1.6rem);color:#fff;text-shadow:0 2px 0 var(--ink)}
+.fb.ok{color:#c8ffd9}.fb.no{color:#ffd2c9}.fb.info{color:#fff3b0}
+.controls{display:flex;gap:12px;flex-wrap:wrap;justify-content:center}
+.big{font-family:var(--display);font-weight:700;font-size:clamp(1.2rem,3.4vw,1.6rem);border:4px solid var(--ink);border-radius:16px;padding:10px 22px;cursor:pointer;color:var(--ink);background:var(--scroll);box-shadow:0 5px 0 var(--ink)}
+.big.go{background:#ffd23f}
+.big:active{transform:translateY(4px);box-shadow:none}
+
+.overlay{position:fixed;inset:0;background:rgba(43,33,24,.7);display:grid;place-items:center;padding:16px;z-index:20}
+.pop{background:var(--scroll);border:4px solid var(--ink);border-radius:24px;padding:26px;max-width:560px;width:100%;text-align:center;display:flex;flex-direction:column;gap:14px;animation:popin .35s ease}
+.pop h2{font-family:var(--display);font-size:clamp(1.8rem,5vw,2.5rem);margin:0;text-wrap:balance}
+.pop p{margin:0;font-size:clamp(1.2rem,3.4vw,1.5rem);font-weight:700}
+.pop .row{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+.timer{font-family:var(--display);font-size:3rem;color:var(--red);font-variant-numeric:tabular-nums}
+textarea{width:100%;min-height:200px;font-family:ui-monospace,Menlo,monospace;font-size:1rem;border-radius:12px;border:3px solid var(--ink);padding:10px;color:var(--ink);background:#fff}
+.help{font-size:1rem!important;font-weight:400!important;text-align:left;color:var(--muted)}
+canvas#fx{position:fixed;inset:0;pointer-events:none;z-index:30}
+@keyframes shake{0%,100%{translate:0}25%{translate:-9px}75%{translate:9px}}
+@keyframes pulse{0%,100%{scale:1}50%{scale:1.08}}
+@keyframes popin{0%{transform:scale(.7)}60%{transform:scale(1.06)}100%{transform:scale(1)}}
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<canvas id="fx"></canvas>
+<div class="wrap">
+  <header>
+    <h1>Syllable <span>Dojo</span> 🥷</h1>
+    <div class="hud">
+      <div class="pill"><span class="sw" id="beltSw"></span><b id="beltName">White belt</b></div>
+      <div class="pill">⭐ <b id="stars">0</b></div>
+      <button class="btn on" id="mChop">✂ Chop</button>
+      <button class="btn" id="mBuild">🧱 Build</button>
+      <button class="btn" id="snd" aria-label="Sound on or off">🔊</button>
+      <button class="btn" id="teach" aria-label="Teacher setup">⚙️</button>
+    </div>
+  </header>
+
+  <section class="board">
+    <div class="top"><span id="qnum">Word 1 of 6</span><div class="belts" id="belts" aria-label="Belts earned"></div></div>
+    <p class="prompt" id="prompt"></p>
+    <div class="stage"><div id="word" class="word"></div></div>
+    <p class="fb" id="fb" aria-live="polite"></p>
+    <div class="controls" id="controls"></div>
+  </section>
+</div>
+
+<div class="overlay" id="ov" hidden><div class="pop" id="pop"></div></div>
+
+<script>
+const DEFAULT = `re-mem-ber
+prin-ci-pal
+be-yond
+dis-cov-er
+break-fast
+no-bod-y`;
+
+const COLORS=["#ffd23f","#8fd3ff","#ffa8cf","#a6e9b4","#ffbe85"];
+const BELTS=[["White","#ffffff"],["Yellow","#ffd23f"],["Orange","#ff8a3d"],["Green","#3bb273"],["Blue","#3a86ff"],["Purple","#8e5cf7"],["Red","#d64933"],["Brown","#8b5a2b"],["Black","#1d1a17"]];
+const BREAKS=["5 karate chops in the air. Say HI-YA each time!","Stand like a ninja on one foot. Count to 10!","Clap the parts of your name!","3 big ninja jumps!","Sneak like a ninja to the door and back.","Punch the sky 6 times, then take one slow breath."];
+
+const $=id=>document.getElementById(id);
+const esc=s=>s.replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let sound=true, actx=null;
+function beep(n){ if(!sound) return; try{ actx=actx||new (window.AudioContext||window.webkitAudioContext)(); let t=actx.currentTime;
+  n.forEach(([f,d,ty])=>{const o=actx.createOscillator(),g=actx.createGain();o.type=ty||"triangle";o.frequency.value=f;g.gain.setValueAtTime(.16,t);g.gain.exponentialRampToValueAtTime(.001,t+d);o.connect(g).connect(actx.destination);o.start(t);o.stop(t+d);t+=d*.8;});}catch(e){} }
+const sfx={tap:()=>beep([[750,.05,"sine"]]),tick:i=>beep([[520+i*120,.1,"sine"]]),nope:()=>beep([[260,.12,"square"],[190,.2,"square"]]),
+  chop:()=>beep([[1200,.04,"sawtooth"],[500,.06,"sawtooth"],[180,.14,"square"]]),win:()=>beep([[523,.1],[659,.1],[784,.1],[1047,.3]])};
+
+function parse(t){return t.split(/\n|,/).map(l=>l.trim()).filter(Boolean).map(l=>{const parts=l.split(/[-·•\/|\s]+/).map(s=>s.trim()).filter(Boolean);return {parts,word:parts.join("")}}).filter(o=>o.parts.length);}
+let raw=DEFAULT; try{const s=localStorage.getItem("dojo-set"); if(s&&parse(s).length) raw=s;}catch(e){}
+let items=parse(raw);
+
+let mode="chop", q=0, stars=0, done=0, misses=0, cuts=new Set(), stage="", said=0, filled=0;
+
+function shuffle(a){const b=a.slice();for(let i=b.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[b[i],b[j]]=[b[j],b[i]]}return b}
+function beltIdx(n){return Math.round(n/items.length*(BELTS.length-1));}
+function fb(msg,type){$("fb").textContent=msg;$("fb").className="fb "+(type||"");}
+function setControls(h){$("controls").innerHTML=h;}
+
+function drawHUD(){
+  $("stars").textContent=stars;
+  const b=BELTS[beltIdx(done)]; $("beltName").textContent=b[0]+" belt"; $("beltSw").style.background=b[1];
+  const row=$("belts"); row.innerHTML="";
+  items.forEach((_,i)=>{const s=document.createElement("span");s.className="belt"+(i<done?" on":"");s.style.background=BELTS[beltIdx(i+1)][1];row.appendChild(s);});
+  $("qnum").textContent=`Word ${Math.min(q+1,items.length)} of ${items.length}`;
+}
+function render(){ drawHUD(); misses=0; mode==="chop"?renderChop():renderBuild(); }
+
+/* ---------- CHOP ---------- */
+function correctCuts(it){const s=new Set();let n=0;it.parts.slice(0,-1).forEach(p=>{n+=p.length;s.add(n-1)});return s;}
+function renderChop(){
+  stage="chop"; cuts=new Set();
+  const it=items[q];
+  $("prompt").innerHTML="Say the word. Tap where it breaks into parts. Then <b>CHOP!</b>";
+  const w=$("word"); w.className="word"; w.innerHTML="";
+  [...it.word].forEach((ch,i)=>{const s=document.createElement("span");s.className="letter";s.textContent=ch;w.appendChild(s);
+    if(i<it.word.length-1){const g=document.createElement("button");g.className="gap";g.setAttribute("aria-label",`Chop after ${ch}`);g.onclick=()=>toggleCut(i,g);w.appendChild(g);}});
+  setControls(`<button class="big" id="hintB">👏 How many parts?</button><button class="big" id="clearB">↺ Clear</button><button class="big go" id="chopB">✂ CHOP!</button>`);
+  $("hintB").onclick=()=>{const n=items[q].parts.length;fb(`This word has ${n} parts ${"👏".repeat(n)}`,"info")};
+  $("clearB").onclick=()=>{if(stage!=="chop")return;cuts.clear();document.querySelectorAll(".gap").forEach(g=>g.className="gap");fb("")};
+  $("chopB").onclick=checkChop;
+  fb("");
+}
+function toggleCut(i,g){ if(stage!=="chop"||g.classList.contains("ok")) return; sfx.tap();
+  if(cuts.has(i)){cuts.delete(i);g.classList.remove("cut")} else {cuts.add(i);g.classList.add("cut")} }
+function checkChop(){
+  if(stage!=="chop") return;
+  const it=items[q], right=correctCuts(it);
+  if(it.parts.length>1&&cuts.size===0){fb("Tap between two letters to make a chop first!","info");return;}
+  const extra=[...cuts].filter(i=>!right.has(i)), missing=[...right].filter(i=>!cuts.has(i));
+  if(!extra.length&&!missing.length) return sayParts();
+  misses++; sfx.nope();
+  const gaps=[...document.querySelectorAll(".gap")];
+  cuts.forEach(i=>{ if(right.has(i)) gaps[i].classList.add("ok"); else gaps[i].classList.add("bad"); });
+  setTimeout(()=>extra.forEach(i=>{cuts.delete(i);gaps[i].className="gap"}),700);
+  if(misses>=3){
+    stage="lock"; fb("Watch the sensei chop it! 🥷","info");
+    setTimeout(()=>{right.forEach(i=>{cuts.add(i);gaps[i].className="gap cut ok"});setTimeout(sayParts,1000)},900);
+    return;
+  }
+  let msg=extra.length&&missing.length?"Some chops are in the wrong spot, and one is missing.":extra.length?"Oops! A chop is in the wrong spot.":"Good chops! You need more.";
+  if(misses>=2) msg+=` It has ${it.parts.length} parts ${"👏".repeat(it.parts.length)}`;
+  fb(msg+" Say it slowly and clap it.","no");
+}
+
+/* ---------- SAY EACH PART ---------- */
+function sayParts(){
+  stage="say"; said=0; sfx.chop();
+  const it=items[q];
+  $("prompt").innerHTML="Say each part out loud. Tap each part as you say it.";
+  const w=$("word"); w.className="chips"; w.innerHTML="";
+  it.parts.forEach((p,i)=>{const b=document.createElement("button");b.className="chip"+(i===0?" next":"");b.style.background=COLORS[i%COLORS.length];b.textContent=p;b.onclick=()=>sayTap(i,b);w.appendChild(b);});
+  setControls(""); fb(misses===0?"Perfect chop! 🥷":"You chopped it!","ok");
+}
+function sayTap(i,b){
+  if(stage!=="say"||i!==said) return;
+  sfx.tick(i); b.classList.remove("next"); b.classList.add("said"); said++;
+  const chips=[...document.querySelectorAll(".chip")];
+  if(said<chips.length) chips[said].classList.add("next");
+  else askWhole();
+}
+function askWhole(){
+  stage="whole";
+  $("prompt").innerHTML="Now read the <b>whole word!</b>";
+  setControls(`<button class="big go" id="wholeB">🗣 I read it!</button>`); $("wholeB").onclick=whole;
+}
+function whole(){
+  stage="done"; const it=items[q];
+  const w=$("word"); w.className="whole"; w.innerHTML=it.parts.map((p,i)=>`<span style="background:${COLORS[i%COLORS.length]}">${esc(p)}</span>`).join("");
+  const earned=misses===0?3:misses===1?2:1; stars+=earned; done=q+1; drawHUD(); sfx.win(); confetti();
+  $("prompt").innerHTML="🥋 Hi-YA!";
+  fb(`+${earned} ⭐  You earned your ${BELTS[beltIdx(done)][0]} belt!`,"ok");
+  const last=q===items.length-1;
+  setControls(`<button class="big go" id="nextB">${last?"🏆 Finish":"Next word ▶"}</button>`); $("nextB").onclick=next;
+}
+function next(){ q++; if(q>=items.length) return finale(); render(); if(q%3===0) ninjaBreak(); }
+
+/* ---------- BUILD ---------- */
+function renderBuild(){
+  stage="build"; filled=0;
+  const it=items[q];
+  $("prompt").innerHTML="Tap the parts in order to build the word. Say each part as you tap it!";
+  const w=$("word"); w.className="build";
+  let order=shuffle(it.parts.map((p,i)=>({p,i})));
+  if(it.parts.length>1){let n=0;while(order.every((o,k)=>o.i===k)&&n++<20) order=shuffle(order);}
+  w.innerHTML=`<div class="slots">${it.parts.map((_,i)=>`<div class="slot" id="slot${i}"></div>`).join("")}</div><div class="blocks" id="blocks"></div>`;
+  order.forEach(o=>{const b=document.createElement("button");b.className="block";b.textContent=o.p;b.onclick=()=>buildTap(o,b);$("blocks").appendChild(b);});
+  setControls(""); fb("");
+}
+function buildTap(o,b){
+  if(stage!=="build") return; const it=items[q];
+  if(o.p===it.parts[filled]){
+    sfx.tick(filled); const s=$("slot"+filled); s.textContent=o.p; s.classList.add("filled"); s.style.background=COLORS[filled%COLORS.length]; b.remove(); filled++;
+    if(filled===it.parts.length){ sfx.chop(); fb(misses===0?"Built it perfectly! 🧱":"You built it!","ok"); setTimeout(askWhole,300); }
+  } else {
+    misses++; sfx.nope(); b.classList.remove("shake"); void b.offsetWidth; b.classList.add("shake");
+    fb("Say the word slowly. Which part comes next?","no");
+  }
+}
+
+/* ---------- popups ---------- */
+function showPop(h){$("pop").innerHTML=h;$("ov").hidden=false}
+function closePop(){$("ov").hidden=true}
+function ninjaBreak(){
+  const move=BREAKS[Math.floor(Math.random()*BREAKS.length)]; let s=20;
+  showPop(`<h2>🥷 Ninja Break!</h2><p>${move}</p><div class="timer" id="bt">${s}</div><button class="big go" id="bdone">Done! ✔</button>`);
+  const iv=setInterval(()=>{s--;const el=$("bt");if(el)el.textContent=s;if(s<=0){clearInterval(iv);sfx.win();}},1000);
+  $("bdone").onclick=()=>{clearInterval(iv);closePop();};
+}
+function finale(){
+  q=items.length-1; drawHUD(); sfx.win(); confetti(); setTimeout(confetti,500);
+  const other=mode==="chop"?"🧱 Build":"✂ Chop";
+  showPop(`<h2>🥋 BLACK BELT!</h2><p>You mastered all ${items.length} words</p><p>⭐ ${stars} of ${items.length*3} stars</p>
+   <div class="row"><button class="big" id="again">Play again</button><button class="big go" id="swap">Try ${other} mode ▶</button></div>`);
+  $("again").onclick=()=>{closePop();restart();};
+  $("swap").onclick=()=>{closePop();setMode(mode==="chop"?"build":"chop");restart();};
+}
+function restart(){q=0;stars=0;done=0;render();}
+function setMode(m){mode=m;$("mChop").classList.toggle("on",m==="chop");$("mBuild").classList.toggle("on",m==="build");render();}
+function teacher(){
+  showPop(`<h2>⚙️ Teacher setup</h2>
+   <p class="help">One word per line. Put a dash between the parts:<br><code>re-mem-ber</code></p>
+   <textarea id="ta" aria-label="Words">${esc(raw)}</textarea>
+   <p class="help" id="tmsg"></p>
+   <div class="row"><button class="big" id="tDef">Restore Colton's list</button><button class="big" id="tCancel">Cancel</button><button class="big go" id="tSave">Save & start</button></div>`);
+  $("tCancel").onclick=closePop;
+  $("tDef").onclick=()=>{$("ta").value=DEFAULT};
+  $("tSave").onclick=()=>{const v=$("ta").value,p=parse(v);if(!p.length){$("tmsg").textContent="Add at least one word, like re-mem-ber.";return;}
+    raw=v;items=p;try{localStorage.setItem("dojo-set",v)}catch(e){} closePop(); restart();};
+}
+
+/* confetti */
+const cv=$("fx"),cx=cv.getContext("2d");let parts=[];
+function size(){cv.width=innerWidth;cv.height=innerHeight} addEventListener("resize",size); size();
+function confetti(){ if(matchMedia("(prefers-reduced-motion: reduce)").matches) return; const c=["#ffd23f","#d64933","#2f9a58","#3a7bd5","#ffa8cf"];
+  const st=!parts.length; for(let i=0;i<110;i++) parts.push({x:innerWidth/2,y:innerHeight/3,vx:(Math.random()-.5)*14,vy:Math.random()*-12-4,c:c[i%5],r:Math.random()*6+4,a:1}); if(st) loop(); }
+function loop(){cx.clearRect(0,0,cv.width,cv.height);parts.forEach(p=>{p.x+=p.vx;p.y+=p.vy;p.vy+=.4;p.a-=.008;cx.globalAlpha=Math.max(p.a,0);cx.fillStyle=p.c;cx.fillRect(p.x,p.y,p.r,p.r*1.6)});
+  parts=parts.filter(p=>p.a>0&&p.y<cv.height+20); if(parts.length) requestAnimationFrame(loop); else cx.clearRect(0,0,cv.width,cv.height);}
+
+$("mChop").onclick=()=>setMode("chop"); $("mBuild").onclick=()=>setMode("build");
+$("snd").onclick=()=>{sound=!sound;$("snd").textContent=sound?"🔊":"🔇"};
+$("teach").onclick=teacher;
+render();
+</script>
+</body>
+</html>
